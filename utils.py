@@ -12,6 +12,7 @@ def load_hf_model(model_path: str, device: str) -> Tuple[PaliGemmaForConditional
     assert tokenizer.padding_side == "right"
 
     # Find all the *.safetensors files
+    # dong: each safetensor file is a dictionary containing all the weights of layer
     safetensors_files = glob.glob(os.path.join(model_path, "*.safetensors"))
 
     # ... and load them one by one in the tensors dictionary
@@ -22,6 +23,7 @@ def load_hf_model(model_path: str, device: str) -> Tuple[PaliGemmaForConditional
                 tensors[key] = f.get_tensor(key)
 
     # Load the model's config
+    # dong: config.json is from hugging face
     with open(os.path.join(model_path, "config.json"), "r") as f:
         model_config_file = json.load(f)
         config = PaliGemmaConfig(**model_config_file)
@@ -33,6 +35,7 @@ def load_hf_model(model_path: str, device: str) -> Tuple[PaliGemmaForConditional
     model.load_state_dict(tensors, strict=False)
 
     # Tie weights
+    # dong: this will copy the weights from the embedding layer to the logits layer
     model.tie_weights()
 
     return (model, tokenizer)

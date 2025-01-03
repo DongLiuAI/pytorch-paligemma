@@ -1,5 +1,6 @@
 from PIL import Image
 import torch
+#dong: fire is parse the command line parameters
 import fire
 
 from processing_paligemma import PaliGemmaProcessor
@@ -34,12 +35,13 @@ def test_inference(
     top_p: float,
     do_sample: bool,
 ):
+    # dong: 'get_model_inputs' func sends `prompt`, `image_file` to `processor` which returns 'pixel_values', `input_ids`, and `attention_mask`
     model_inputs = get_model_inputs(processor, prompt, image_file_path, device)
     input_ids = model_inputs["input_ids"]
     attention_mask = model_inputs["attention_mask"]
     pixel_values = model_inputs["pixel_values"]
 
-    kv_cache = KVCache()
+    kv_cache = KVCache() #dong: create an empty kv cache
 
     # Generate tokens until you see the stop token
     stop_token = processor.tokenizer.eos_token_id
@@ -47,22 +49,32 @@ def test_inference(
 
     for _ in range(max_tokens_to_generate):
         # Get the model outputs
+        # dong: first do pre-filling
         # TODO: remove the labels
         outputs = model(
             input_ids=input_ids,
             pixel_values=pixel_values,
-            attention_mask=attention_mask,
+            attention_mask=attention_mask, #dong: just a list of one's because we are not padding
             kv_cache=kv_cache,
         )
         kv_cache = outputs["kv_cache"]
         next_token_logits = outputs["logits"][:, -1, :]
         # Sample the next token
+        # dong: logit is a vector, whose dim equals to vacob size
+        # softmax converts the logits to prob scores summing up to 1.
+        # using the sampling method to find the top-k tokens.  Top P = 0.7 so
+        # top k prob scores sum up at least 0.7, and then we sample from them (re-arrange the scores to sum up to 1 by applying softmax again)
+        # i.e., we only consider the most likely ones from the model
+
+        #dong: temperature, before we apply softmax, logit values are not prob score, not sum up to 1, e.g., 7, 10, 5, 2, 1
+        #dong: when we apply the temperature, we are making their difference smaller (i.e,e reducing gaps between tokens),
+        #dong: which essentially introducing some noises to the scores, but only over the top-k, making it more likely to choose diverse tokens
         if do_sample:
             # Apply temperature
             next_token_logits = torch.softmax(next_token_logits / temperature, dim=-1)
             next_token = _sample_top_p(next_token_logits, top_p)
         else:
-            next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
+            next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True) # dong: this is greedy strategy
         assert next_token.size() == (1, 1)
         next_token = next_token.squeeze(0)  # Remove batch dimension
         generated_tokens.append(next_token)
@@ -70,6 +82,7 @@ def test_inference(
         if next_token.item() == stop_token:
             break
         # Append the next token to the input
+        # dong: from the 2nd iteration of the full loop, `input_ids` will become only one single token (last predicted token), cuz kv-cache
         input_ids = next_token.unsqueeze(-1)
         attention_mask = torch.cat(
             [attention_mask, torch.ones((1, 1), device=input_ids.device)], dim=-1
@@ -102,9 +115,9 @@ def _sample_top_p(probs: torch.Tensor, p: float):
 
 
 def main(
-    model_path: str = None,
+    model_path: str = None, #dong: model weight file path
     prompt: str = None,
-    image_file_path: str = None,
+    image_file_path: str = None, #dong: image to be conditioned
     max_tokens_to_generate: int = 100,
     temperature: float = 0.8,
     top_p: float = 0.9,
@@ -116,13 +129,13 @@ def main(
     if not only_cpu:
         if torch.cuda.is_available():
             device = "cuda"
-        elif torch.backends.mps.is_available():
+        elif torch.backends.mps.is_available(): #dong: mps for the macbook
             device = "mps"
 
     print("Device in use: ", device)
 
     print(f"Loading model")
-    model, tokenizer = load_hf_model(model_path, device)
+    model, tokenizer = load_hf_model(model_path, device) # dong: our layer name is the same as those in Hugging face, so directly load weights from HF
     model = model.to(device).eval()
 
     num_image_tokens = model.config.vision_config.num_image_tokens

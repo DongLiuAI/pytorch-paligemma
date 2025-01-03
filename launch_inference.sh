@@ -1,6 +1,6 @@
 #!/bin/bash
 
-MODEL_PATH="$HOME/projects/paligemma-weights/paligemma-3b-pt-224"
+MODEL_PATH="$HOME/projects/paligemma-weights/paligemma-3b-pt-224" #dong: download the model locally
 PROMPT="this building is "
 IMAGE_FILE_PATH="test_images/pic1.jpeg"
 MAX_TOKENS_TO_GENERATE=100
