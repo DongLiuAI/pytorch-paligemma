@@ -2,7 +2,7 @@ from typing import Optional, Tuple
 import torch
 import torch.nn as nn
 
-#dong: vision encoder's configrations, why need a class? because paligemma has different sizes with different visual encoder
+#dong: vision encoder's configurations, why need a class? because Paligemma has different sizes with different visual encoder
 class SiglipVisionConfig:
 
     def __init__(
@@ -115,7 +115,7 @@ class SiglipAttention(nn.Module):
 
         value_states = value_states.view(batch_size, seq_len, self.num_heads, self.head_dim).transpose(1, 2)
         # Calculate the attention using the formula Q * K^T / sqrt(d_k). attn_weights: [Batch_Size, Num_Heads, Num_Patches, Num_Patches]
-        # dong: transpose(2, 3) makes the following
+        # dong: transpose(2, 3) makes the following happen
         # [batch_size, num_heads, num_patches, head_dim] * [batch_size, num_heads, head_dim, num_patches] which ends up with
         # a tensor of size [batch_size, num_heads, num_patches, num_patches]
         attn_weights = (torch.matmul(query_states, key_states.transpose(2, 3)) * self.scale)
@@ -168,6 +168,7 @@ class SiglipMLP(nn.Module):
         # hidden_states: [Batch_Size, Num_Patches, Intermediate_Size]
         # dong: `relu` ignores gradients for the negative input values, hence `leakReLU`
         # dong: here `gelu` works better in practice in heuristics
+        # dong: 'gelu' is Gaussian Error Linear Unit
         hidden_states = nn.functional.gelu(hidden_states, approximate="tanh")
         # [Batch_Size, Num_Patches, Intermediate_Size] -> [Batch_Size, Num_Patches, Embed_Dim]
         hidden_states = self.fc2(hidden_states)
@@ -203,7 +204,7 @@ class SiglipEncoderLayer(nn.Module):
         # [Batch_Size, Num_Patches, Embed_Dim] -> [Batch_Size, Num_Patches, Embed_Dim]
         hidden_states = self.layer_norm2(hidden_states)
         # [Batch_Size, Num_Patches, Embed_Dim] -> [Batch_Size, Num_Patches, Embed_Dim]
-        # dong: linear layer that takes each input embedding and transform it independently from each other. it adds also non-linearity activation
+        # dong: linear layer that takes each input embedding and transform it in-dependently from each other. it adds also non-linearity activation
         hidden_states = self.mlp(hidden_states)
         # [Batch_Size, Num_Patches, Embed_Dim]
         hidden_states = residual + hidden_states
