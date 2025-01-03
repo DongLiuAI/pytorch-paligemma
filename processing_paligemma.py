@@ -16,7 +16,7 @@ def add_image_tokens_to_prompt(prefix_prompt, bos_token, image_seq_len, image_to
     #   The tokenized text is also prefixed with a fixed number of <image> tokens.
     # NOTE: from the paper it looks like the `\n` should be tokenized separately, but in the HF implementation this is not done.
     #       ref to HF implementation: https://github.com/huggingface/transformers/blob/7f79a97399bb52aad8460e1da2f36577d5dccfed/src/transformers/models/paligemma/processing_paligemma.py#L55-L73
-    return f"{image_token * image_seq_len}{bos_token}{prefix_prompt}\n" #dong: newline \n is added separately suggested by the paper, instead of being merged as part of the prompt
+    return f"{image_token * image_seq_len}{bos_token}{prefix_prompt}\n" #dong: newline <\n> is added separately suggested by the paper, instead of being merged as part of the prompt
 
 
 def rescale(
@@ -117,7 +117,7 @@ class PaliGemmaProcessor:
 
         pixel_values = process_images(
             images,
-            size=(self.image_size, self.image_size), #d ong: there are different image sizes for paligemma
+            size=(self.image_size, self.image_size), #dong: there are different image sizes for paligemma
             resample=Image.Resampling.BICUBIC,
             rescale_factor=1 / 255.0,
             image_mean=IMAGENET_STANDARD_MEAN,
@@ -141,7 +141,7 @@ class PaliGemmaProcessor:
         ]
 
         # Returns the input_ids and attention_mask as PyTorch tensors #dong: input_ids mean token ids in the vocabulary
-        # dong: Hello World -> [5, 2, 9], 2 is a space ->[[...], [...], [...]] embeddings
+        # dong: Hello World -> [5, 2, 9], where 2 is a space -> [[...], [...], [...]] embeddings
         inputs = self.tokenizer(
             input_strings,
             return_tensors="pt",
