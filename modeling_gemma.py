@@ -473,7 +473,7 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
         self.pad_token_id = self.config.pad_token_id if self.config.pad_token_id is not None else -1
 
     def tie_weights(self):
-        # dong: LMs are decoder only without cross attention as in transformer
+        # dong: LMs are decoder only without cross-attention as in the transformer
         # the final linear projection layer (after self-attention blocks) maps the contextual embeddings to vocab ids, which is reserve to the job of the input embedding layer
         # (i.e., map vocab ids to embeddings), so most LMs re-use parameters (could be very large) between these two layers to reduce parameter size
         # this function will tie the weights between the two layers
@@ -575,7 +575,7 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
         self,
         input_ids: torch.LongTensor = None, # dong: image_tokens + <BOS> + prompt + <\n>
         pixel_values: torch.FloatTensor = None, # dong: image loaded by the Paligemma processor - resized abd normalized - to be fed into vision encoder to extract image tokens
-        attention_mask: Optional[torch.Tensor] = None, # dong: cuz we are not any padding, this will be all 1's
+        attention_mask: Optional[torch.Tensor] = None, # dong: cuz we are not using any padding, this will be all 1's
         kv_cache: Optional[KVCache] = None,
     ) -> Tuple:
 
@@ -590,7 +590,7 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
         # [Batch_Size, Channels, Height, Width] -> [Batch_Size, Num_Patches, Embed_Dim]
         selected_image_feature = self.vision_tower(pixel_values.to(inputs_embeds.dtype))
         # [Batch_Size, Num_Patches, Embed_Dim] -> [Batch_Size, Num_Patches, Hidden_Size]
-        image_features = self.multi_modal_projector(selected_image_feature) # dong: a linear layer to convert image embedding dim to the same as the input of LMs
+        image_features = self.multi_modal_projector(selected_image_feature) # dong: a linear layer to convert the image embedding dim to the same as the input of the gemma LM
 
         # Merge the embeddings of the text tokens and the image tokens
         # dong: `image_features` extracted by the vision encoder

@@ -142,11 +142,14 @@ class PaliGemmaProcessor:
 
         # Returns the input_ids and attention_mask as PyTorch tensors #dong: input_ids mean token ids in the vocabulary
         # dong: Hello World -> [5, 2, 9], where 2 is a space -> [[...], [...], [...]] embeddings
+        # dong: returns an `attention_mask` tensor by default, indicating which tokens should be attended to and which should be ignored (typically padding tokens)
+        # dong: a binary mask of the same shape as input_ids, where 1 indicates a token that should be attended to, and 0 indicates a padding token that should be
+        # dong: ignored by the model
         inputs = self.tokenizer(
-            input_strings,
-            return_tensors="pt",
-            padding=padding,
-            truncation=truncation,
+            input_strings, #dong: the list of strings that you want to tokenize
+            return_tensors="pt", #dong: specifies output returned as PyTorch tensors.
+            padding=padding, #dong: longest to ensure all sequences in a batch have the same length
+            truncation=truncation, #dong: controls whether and how truncation is applied to the input sequences, ensuring seqs longer than model's max input length are truncated
         )
 
         return_data = {"pixel_values": pixel_values, **inputs}

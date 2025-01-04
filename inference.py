@@ -135,7 +135,7 @@ def main(
     print("Device in use: ", device)
 
     print(f"Loading model")
-    model, tokenizer = load_hf_model(model_path, device) # dong: our layer name is the same as those in Hugging face, so directly load weights from HF
+    model, tokenizer = load_hf_model(model_path, device) # dong: our layer name is the same as those in Hugging face, so here we directly load weights from HF
     model = model.to(device).eval()
 
     num_image_tokens = model.config.vision_config.num_image_tokens
