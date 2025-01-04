@@ -34,7 +34,7 @@ class KVCache():
         else:
             # ... otherwise we concatenate the new keys with the existing ones.
             # each tensor has shape: [Batch_Size, Num_Heads_KV, Seq_Len, Head_Dim]
-            self.key_cache[layer_idx] = torch.cat([self.key_cache[layer_idx], key_states], dim=-2) #dong: concate along the seq dim
+            self.key_cache[layer_idx] = torch.cat([self.key_cache[layer_idx], key_states], dim=-2) #dong: concatenate along the seq dim
             self.value_cache[layer_idx] = torch.cat([self.value_cache[layer_idx], value_states], dim=-2)
 
         # ... and then we return all the existing keys + the new ones.
@@ -47,14 +47,14 @@ class GemmaConfig():
         vocab_size,
         hidden_size, #dong: dim of the embedding vector of each token
         intermediate_size, #dong: dim of the intermediate feed forward layer
-        num_hidden_layers, #dong; how many layers our transformer has in the gemma language model
+        num_hidden_layers, #dong: how many layers our transformer has in the gemma language model
         num_attention_heads, #dong: num_heads for the queries
         num_key_value_heads, #dong: num_heads for the keys and values
         head_dim=256,#dong: dim of split embedding feature for each head
         max_position_embeddings=8192, #dong: max positions encoding our model is trained upon, which is necessary for the rotary position encoding
         rms_norm_eps=1e-6,
         rope_theta=10000.0, #dong: frequency param in rotary positional encoding
-        attention_bias=False, #dong: whether use b in attention weights
+        attention_bias=False, #dong: whether to use b in attention weights
         attention_dropout=0.0,
         pad_token_id=None,
         **kwargs,
@@ -75,7 +75,7 @@ class GemmaConfig():
         self.pad_token_id = pad_token_id
 
 class PaliGemmaConfig():
-    # dong: paligemma is a combination of an image encoder (sigClip + linear projection layer) and a text language model (called gemma language model)
+    # dong: paligemma is a combination of an image encoder (siglip + linear projection layer) and a text language model (called gemma language model)
 
     def __init__(
         self,
@@ -123,6 +123,7 @@ class GemmaRMSNorm(nn.Module):
         output = self._norm(x.float())
         # Llama does x.to(float16) * w whilst Gemma is (x * w).to(float16)
         # See https://github.com/huggingface/transformers/pull/29402
+        # dong: 1.0 is an offset value added to the original RMSNorm implementation
         output = output * (1.0 + self.weight.float())
         return output.type_as(x)
 
@@ -154,13 +155,13 @@ class GemmaRotaryEmbedding(nn.Module):
             # freqs: [Batch_Size, Head_Dim // 2, 1] @ [Batch_Size, 1, Seq_Len] --> [Batch_Size, Seq_Len, Head_Dim // 2]
             freqs = (inv_freq_expanded.float() @ position_ids_expanded.float()).transpose(1, 2) #dong: this is m x thera in the paper for sine and cosine
             # emb: [Batch_Size, Seq_Len, Head_Dim]
-            # dong: different from paper, paper repeats each element twice (ie. theta1, theta1, theta2, theta2...), but here repeat a list (theta 1, threa2, ... theta1, theta2, ...) (Hugging face implemeentation)
+            # dong: different from paper, paper repeats each element twice (ie. theta1, theta1, theta2, theta2...), but here repeat a list (theta 1, threa2, ... theta1, theta2, ...) (Hugging face implementation)
             # why? Hugging face implementation in weight conversion, here to counter-effect that.
             emb = torch.cat((freqs, freqs), dim=-1)
             # cos, sin: [Batch_Size, Seq_Len, Head_Dim]
             cos = emb.cos()
             sin = emb.sin()
-        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype) #dong for each position in our sequence
+        return cos.to(dtype=x.dtype), sin.to(dtype=x.dtype) #dong: for each position in our sequence
 
 
 def rotate_half(x):
@@ -212,13 +213,13 @@ class GemmaAttention(nn.Module):
     def __init__(self, config: GemmaConfig, layer_idx: Optional[int] = None):
         super().__init__()
         self.config = config
-        self.layer_idx = layer_idx #dong: each decoder layer has its own KV-cache, use idx here to know which layer to put certain KV-value
+        self.layer_idx = layer_idx #dong: each decoder layer has its own KV-cache, use layer_idx here to know which layer to put certain KV-value
 
         self.attention_dropout = config.attention_dropout
         self.hidden_size = config.hidden_size
         self.num_heads = config.num_attention_heads
         self.head_dim = config.head_dim
-        self.num_key_value_heads = config.num_key_value_heads #dong: for group query attention
+        self.num_key_value_heads = config.num_key_value_heads #dong: for grouped-query attention
         self.num_key_value_groups = self.num_heads // self.num_key_value_heads
         self.max_position_embeddings = config.max_position_embeddings
         self.rope_theta = config.rope_theta
@@ -227,7 +228,7 @@ class GemmaAttention(nn.Module):
         assert self.hidden_size % self.num_heads == 0            
 
         #dong: why is the output dim not hidden_size but rather num_heads * head_dim
-        #dong: num_heads in query is bigger than the that in key and value
+        #dong: num_heads in query is bigger than that in key and value
         # suppose num_heads = 8, hidden_size = 1024, head_dim = 1024/8 = 128
         # Wq: [1024, 8 * 128] = [1024, 1024]
         # Wk: [1024, 1 * 128] = [1024, 128] cuz num_key_value_head = 1
@@ -251,7 +252,7 @@ class GemmaAttention(nn.Module):
         kv_cache: Optional[KVCache] = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        bsz, q_len, _ = hidden_states.size() # [Batch_Size, Seq_Len, Hidden_Size] # dong: q_len is 1
+        bsz, q_len, _ = hidden_states.size() # [Batch_Size, Seq_Len, Hidden_Size] # dong: q_len is 1 because of KV-cache
         # [Batch_Size, Seq_Len, Num_Heads_Q * Head_Dim]
         query_states = self.q_proj(hidden_states)
         # [Batch_Size, Seq_Len, Num_Heads_KV * Head_Dim]
@@ -274,9 +275,9 @@ class GemmaAttention(nn.Module):
             key_states, value_states = kv_cache.update(key_states, value_states, self.layer_idx)
 
         # Repeat the key and values to match the number of heads of the query
-        # dong: each query head needs to share key head with other heads due to group query attention,
+        # dong: each query head needs to share key head with other heads due to grouped-query attention,
         # dong: for example the 1st two heads of query need to share the 1st head of the keys
-        # dong: here we just repeat the missing heads to match the heads of the query. cuz we don;t have the customiz cuda kernel,
+        # dong: here we just repeat the missing heads to match the heads of the query. cuz we don't have the customized cuda kernel,
         # dong: so here as if multi-query attention never happens. :(
         key_states = repeat_kv(key_states, self.num_key_value_groups)
         value_states = repeat_kv(value_states, self.num_key_value_groups)
@@ -353,7 +354,7 @@ class GemmaDecoderLayer(nn.Module):
         return hidden_states
 
 class GemmaModel(nn.Module):
-    # dong: this is the text language model
+    # dong: this is the text language model, which is a transformer decoder
 
     def __init__(self, config: GemmaConfig):
         super().__init__()
@@ -363,7 +364,7 @@ class GemmaModel(nn.Module):
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList(
-            [GemmaDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)] #dong: transfomer layers
+            [GemmaDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)] #dong: transformer layers
         )
         self.norm = GemmaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
@@ -458,7 +459,7 @@ class PaliGemmaMultiModalProjector(nn.Module):
         return hidden_states
 
 # a class connecting all the models together
-class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because we condition the text generation on the provided image as well as text prompt
+class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because we condition the text generation on the provided image as well as the text prompt
     def __init__(self, config: PaliGemmaConfig):
         super().__init__()
         self.config = config
@@ -485,19 +486,20 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
         batch_size, sequence_length = input_ids.shape
         dtype, device = inputs_embeds.dtype, inputs_embeds.device
         # Shape: [Batch_Size, Seq_Len, Hidden_Size]
-        scaled_image_features = image_features / (self.config.hidden_size**0.5)#dong: same as in attention equation
+        scaled_image_features = image_features / (self.config.hidden_size**0.5) #dong: same as in attention equation
     
         # Combine the embeddings of the image tokens, the text tokens and mask out all the padding tokens.
         # dong: below image and text token will have the same size of `embed_dim`
         # dong: sequence_len is of size `image_tokens + <BOS> + prompy tokens + <\n>`
         # dong: no paddings at all
         final_embedding = torch.zeros(batch_size, sequence_length, embed_dim, dtype=inputs_embeds.dtype, device=inputs_embeds.device)
-        #dong: below masks will help us understand where to put image embeddings, where to put text embeddings and pad tokens in the final embedding
-        # Shape: [Batch_Size, Seq_Len]. True for text tokens
-        # dong: input_ids: [567, 567, 567, 567, 567, 1, 65, 78, 99, 21, 11, 2] where 567 is image_token, 2 is <\n>
+        # dong: below masks will help us understand where to put image embeddings, where to put text embeddings and pad tokens in the final embedding
+        # dong: input_ids: [567, 567, 567, 567, 567, 1, 65, 78, 99, 21, 11, 2] where 567 is <image_token>, 2 is <\n>
         # dong: `text_mask` will be [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1]
         # dong: `image_mask` will be [1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0]
         # dong: `pad_mask` will be all 0's
+
+        # Shape: [Batch_Size, Seq_Len]. True for text tokens
         text_mask = (input_ids != self.config.image_token_index) & (input_ids != self.pad_token_id)
         # Shape: [Batch_Size, Seq_Len]. True for image tokens
         image_mask = input_ids == self.config.image_token_index
@@ -510,7 +512,7 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
         pad_mask_expanded = pad_mask.unsqueeze(-1).expand(-1, -1, embed_dim)
         image_mask_expanded = image_mask.unsqueeze(-1).expand(-1, -1, embed_dim)
 
-        # dong: final embedding is the input into the gemma language model, i.e., 256 image embeddings and text embeddings of the prompt plus padding (here excluded in this implementation)
+        # dong: final embedding is the input into the gemma language model, i.e., 256 image embeddings and text embeddings of the prompt plus padding (here padding is excluded in this implementation)
         # Add the text embeddings
         # dong: torch.where(first, second, third) if first is true, copy from second, else copy from third
         final_embedding = torch.where(text_mask_expanded, inputs_embeds, final_embedding)
@@ -527,13 +529,13 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
     
         if kv_cache is None or kv_cache.num_items() == 0:
             # dong: for the 1st time, we are pre-filling for the prompt of the user
-            # dong: here fill_value = 0 means we are not adding any infinity values
+            # dong: here `fill_value = 0` means we are not adding any infinity values
             # to the mask: why?
             # prompt is made of image tokens + prompt of the user (<BOS> + user prompt + <SEP>), attention mask is not masking out anything from these
             # because each token we generated must be conditioned on the image, but why the tokens in the prompt is not masked ?
-            # because it describes what the task is about - we want tokens to watch both past and future tokens (and the entire image), ie. we are not generating the prefix (i.e., prompt)
+            # because it describes what the task is about - we want tokens to watch both past and future tokens (and the entire image), i.e., we are not generating the prefix (i.e., prompt)
             # the only thing we are generating is the output - it needs to be causal - it is generating the output text
-            # dong: above is the choice of the Paligemma authors - you only mask tokens to be generated, but only image and input tokens - but not a must
+            # dong: above is the choice of the Paligemma authors - you only mask tokens to be generated, but not the image and input tokens - but not a must
 
             # Do not mask any token, because we're in the prefill phase
             # This only works when we have no padding
@@ -563,8 +565,8 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
                 position_ids = position_ids.unsqueeze(0)
         else:
             # Create a position_ids based on the size of the attention_mask
-            # For masked tokens, use the number 1 as position.
-            # dong: count num of 1 in the kv-cache, take the last number
+            # For masked tokens, use the number of 1's as position.
+            # dong: count num of 1's in the kv-cache, take the last number
             position_ids = (attention_mask.cumsum(-1)).masked_fill_((attention_mask == 0), 1).to(device)
 
         return final_embedding, causal_mask, position_ids
@@ -572,7 +574,7 @@ class PaliGemmaForConditionalGeneration(nn.Module): # dong: conditional because 
     def forward(
         self,
         input_ids: torch.LongTensor = None, # dong: image_tokens + <BOS> + prompt + <\n>
-        pixel_values: torch.FloatTensor = None, # dong: image loaded by the paligemma processor - resized abd normalized - to be fed into vision encoder to extract image tokens
+        pixel_values: torch.FloatTensor = None, # dong: image loaded by the Paligemma processor - resized abd normalized - to be fed into vision encoder to extract image tokens
         attention_mask: Optional[torch.Tensor] = None, # dong: cuz we are not any padding, this will be all 1's
         kv_cache: Optional[KVCache] = None,
     ) -> Tuple:
